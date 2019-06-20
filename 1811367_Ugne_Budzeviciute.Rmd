@@ -1,0 +1,186 @@
+---
+title: "Egzaminas" #nekeisti
+author: "Ugne Budzevciute, 1811367" 
+institute: "Vilniaus Universitetas (EVAF)" #nekeisti 
+date: "`r format(Sys.time(), '%Y-%m-%d %H:%M')`"#nekeisti
+output: #nekeisti
+  html_document: #nekeisti
+    number_sections: TRUE #nekeisti
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, error = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Pries pradedant
+* Ant desktopo sukurkite direktorija "exam", i ja issaugokite si dokumenta pakeisdami jo pavadinima i "StudNr_Vardas_Pavarde.Rmd" (nenaudokite lt rasmenu) bei atitinkamai pakeisdami virsuje esancius laukelius: "author: ..."
+* Sumegzkite iskart si dokumenta i .html faila ir isitikinkite, jog viskas veikia gerai, tik tada pradekite spresti uzdavinius.
+
+
+# Pasiruosimas
+Sioje kodo dalyje surasykite visus paskesnese dalyse naudojamus R paketus. Kodas turi patikrinti, ar paketas yra instaliuotas, jeigu ne, instaliuoti bei uzloadinti. Jeigu darbo eigoje prireikia nauju paketu, nepamirkite cia juos irasyti.
+
+```{r, echo=TRUE, message=FALSE}
+if(!require(eurostat)) install.packages("eurostat") ; require(eurostat)
+if(!require(dplyr)) install.packages("dplyr") ; require(dplyr)
+if(!require(ggplot2)) install.packages("ggplot2") ; require(ggplot2)
+if(!require(tidyr)) install.packages("tidyr") ; require(tidyr)
+```
+
+
+# Istorija
+Siuo metu Jus darbuojates NVO "Stop skurdas". Koks tai "influenceris" patrolino visuomene (galimai apmoketas privaciu pensiju fondu), jog Sodroje kaupti pensijai neapsimoka ir kaip pvz. pateike savo mamule, gaunancia vos 221 eura per menesi. 
+https://i1.wp.com/lithuanian-economy.net/wp-content/uploads/2019/06/Saugirdas.jpg
+
+
+Komentaruose pasipyle aibe pasisakymu, jog jeigu neturetume "pasalpiniu" armijos ir jiems skirtus pinigus skirtume pensininkams, tai pensininkai gyventu "oriau".  
+
+Jums tokie argumentai sukelia daug abejoniu. Kadangi Jus kazkaip isgyvenote  duomenu analizes ivada, Jus nusprendziate pateikti tam tikrus faktus viesai diskusijai. Siu faktu generavimas ir yra Jusu egzamino uzduotis.
+
+
+## Duomenu importas
+Importuokite duomenis is eurostat apie tai, kiek Lietuva (visas valdzios sektorius) ir ES-28 skiria % BVP socialinei paramai. Kadangi datasetas yra didelis, rekomenduoju parsisiusti tik reikalingus duomenis. 
+
+[Pagalba: "gov_10a_exp", reikalingos islaidu rusys "Social protection", "Old age", "Sickness and disability"]
+
+```{r}
+gov_10a_exp <- get_eurostat("gov_10a_exp", stringsAsFactors = F)
+duom <- gov_10a_exp %>% filter(
+  geo %in% c("LT", "EU28"), 
+  unit=="PC_GDP",
+  na_item=="TE",
+  sector=="S13",
+  cofog99 %in% c("GF10","GF1002", "GF1001"))                          
+```
+
+## Duomenu apdorojimas
+Kadangi "pasalpiniai" gauna ivairia socialine pagalba (pvz., lengvatas busto sildymui, vaiku maitinimui mokykloje ir t.t.), sioje dalyje pabandysime is visu islaidu socialinei apsaugai atimti pensijas ir ligos pasalpas, o likuti pavadinsime `pasalpa`. 
+
+Sukurkite nauja dataframe objekta, kuriame butu LT ir EU28 laiko eilutes (nuo 2004 metu) su 2 islaidu sritimis: pasalpa (kuria apskaiciavote) bei islaidomis pensijoms.
+
+```{r}
+data <- duom %>% filter(time>= "2004-01-01")
+
+df <- spread(duom, cofog99, values) %>% 
+  mutate("pasalpa"=GF10-GF1001-GF1002) %>%
+  select(4, 5, 8, 9)
+  
+  
+```
+
+## Nubraizykite grafika
+
+* Nubraizykite pries tai zingsnyje apdorotus duomenis linijine diagrama su taskais (shape) 
+* Spalva priskirkite geo
+* Tasku (shape) forma priskirkite islaidu rusims. 
+* Tiketina Jums reikes googlinti arba ieskoti stackoverflow, kaip pranesti ggplot2, kaip yra sugrupuoti duomenys (jeigu norite jog visos 4 linijos butu viename grafike), alternatyviai galite skaidyti grafika i dvi dalis, pagal islaidu rusis (tada skaidymas turi vykti naudojant viena is ggplot2 komandu)
+* Nepamirskite tvarkingo apipavidalinimo (asys, antrastes ir t.t.)
+
+```{r}
+ggplot(df, aes(x=time, y=pasalpa))+
+  geom_line(aes(col=geo)) +
+  geom_point(aes(x=time, y=GF1002, col=geo))+
+  labs(x="Laikas",
+       y="% BVP", 
+       title="Lietuvos ir Europos Sajungos islaidos pasalpoms ir pensijoms", 
+       subtitle = "Source:Eurostat(gov_10a_exp)")
+
+
+```
+
+
+
+## Apskaiciuokite
+
+Taip pat, Jus nusprendete pateikti lentele, kurioje butu matyti kiek % BVP pensijoms ir pasalpoms skyre EU28 ir Lietuva 2017m.
+Visgi vien tik procentines israiskos nera labai informatyvios, tad Jus nusprendziate pateikite lentele (dataframe pageidautina perleista i lenteliu formavimo komanda) susidedancia is 2 eiluciu (cofog99) ir 4 stulpeliu:
+
+* ES28 islaidos % BVP
+* LT islaidos % BVP
+* skirtumas procentiniais punktais (primenu, 1.9%-1.5%=0.4 proc.punkto)
+* trecio stulpelio reiksmes sudauginkite su Lietuvos 2017m BVP (= 41857 mln eur), nes norite zinoti, kiek mln euru reiktu skirti sioms sritims, tam kad pasiektume ES vidurki
+* PERSPEJIMAS: kai skaiciuosite reikalingas lesas, pasitikrinkite, ar teisingai skaiciuojate  kai sudauginate su proc. punktais! :)
+
+```{r}
+
+```
+
+
+## Grafikas 2 
+
+Pastebeje, jog socialines islaidos pakankamai skiriasi tarp LT is ES28, Jus nusprendete nubraizyti stulpelini grafika, kuriame butu pavaizduotos visu ES (t.y. 28!) saliu islaidos socialiniai sriciai bendrai ("Social protection") % nuo BVP. Naudokite 2017 metu rodiklius. Tam jog matytusi ES28 vidurkis nubraizykite ji i grafika kaip horizontalia linija.
+
+Jums gali reiketi atsisiusti reikiama Eurostat dataset is naujo. 
+Stulpeliai turetu buti surikiuoti didejancia tvarka, ju virsuje pateikiamos  stulpeliu reiksmes.
+
+Grafikas turetu atrodyti daugmaz taip: https://i2.wp.com/lithuanian-economy.net/wp-content/uploads/2019/03/private_expenditue_MTEP_2017.jpeg?resize=768%2C427
+
+
+```{r}
+duomenys <- gov_10a_exp %>% filter( geo %in% c("BE",	"BG", "CZ",	"DK", "DE", "EE", "IE",
+"EL", "ES", "FR", "HR", "IT", "CY", "LV",
+"LT", "LU", "HU", "MT", "NL", "AT", "PL",
+"PT", "RO", "SI", "SK",	"FI", "SE", "UK"), 
+cofog99=="GF10", 
+na_item=="TE",
+sector=="S13",
+unit=="PC_GDP", 
+time=="2017-01-01")
+
+sumos <- data.frame(tapply(duomenys$values, duomenys$geo, sum, na.rm=TRUE))
+EU28 <- mean(sumos[,1])
+
+ggplot(duomenys, aes(x= reorder
+                     (geo, values), y=values))+
+         geom_bar(stat="identity",
+           fill=" steelblue")+
+  
+  geom_text(aes(label=values), vjust=-0.5)+
+  labs(x="Salys",
+       y="% nuo BVP",
+       title="Socialines islaidos % nuo BVP",
+       subtitle = "Source: Eurostat(gov_10a_exp)")+
+  
+
+geom_hline(aes(yintercept=EU28))
+
+
+
+
+```
+
+
+## Vertinimas
+Pateikite trumpa situacijos vertinima remiantis iki siol atlikta duomenu analize. Pateikite savo izvalgas, kaip butu galima spresti zemu pensiju  problemas ateityje. Drasiai galite remtis Europos Komisijos ataskaita bei rekomendacijomis Lietuvai. 
+
+* Rekomendacija: https://ec.europa.eu/info/sites/info/files/file_import/2019-european-semester-country-specific-recommendation-commission-recommendation-lithuania_en.pdf
+* Ataskaita : https://ec.europa.eu/info/sites/info/files/file_import/2019-european-semester-country-report-lithuania_lt.pdf
+
+```{r, eval=TRUE}
+#Parasykite apie 200 (+- 20) zodziu. 
+#Rasykite VIETOJ Lore ipsum... teksto t.y. tarpe tarp abieju kabuciu.
+#Jeigu norite zinoti kiek zodziu parasete, galite runninti tik sit snippet' jo kampytyje nuspaude ant zalio trikampio rodancio i desine
+
+str1 <- 
+"
+Is antrojo grafiko galima pastebeti, kad Lietuva skiria labai mazai islaidu socialinei apsaugai. Visoje Europos Sajungoje uz ja maziau skiria tik Airija. Lietuva socialinems islaidoms skiria 5% ma=iau nei yra Europos S1jungos vidurkis.
+Turint tik 2016 metu duomenis yra gana sunku vertinti dabartine pensiju situacija Lietuvoje. Siekdama gerinti pensiju sistema Lietuva 2018m. ivede  pensiju indeksavima pagal darbo uzmokesti. Nors tai turejo padeti, taciau pradejus mazeti darbo jegos kiekiui Lietuvoje didele tikimybe, kad pensijos nustos augti kartu su darbo uzmokesciu. 
+
+
+
+
+"
+sapply(strsplit(str1," "),length)
+```
+
+
+
+
+
+
+
+## Darbo uzbaigimo ir ship'inimo instrukcija:
+* Sumegzkite si dokumenta i `html`, jeigu Jusu kode yra klaidu ir sumezgimas neveikia, issaugokite si faila tiesiog "File -> save"
+* Savo Github paskyroje sukurkite repo "exam"
+* Pushinkit lokalia repo i Github. Direktorijoje turi buti 2 failai: "StudNr_Vardas_Pavarde.Rmd" ir "StudNr_Vardas_Pavarde.html"
+* Isitikinkite jog Githube guli repo kopija ir repo url irasykite i google docs J stulpeli: https://docs.google.com/spreadsheets/d/1H_ts3wTKYZ4rocmFseR2YJtZHfhJ543MUWsTTa7x5Kc/edit?usp=sharing
